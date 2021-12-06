@@ -16,8 +16,6 @@ function LogNumber(ANumber: Integer): Boolean; forward;
 
 type
   TIntList = specialize TFPGList<Integer>;
-  TIntDictionary = specialize TFPGMap<Integer, Integer>;
-
 
   { TNumbersThread }
 
@@ -28,7 +26,7 @@ type
   public
     constructor Create(AMaxNumber: Integer; AFileName: string);
     procedure Execute; override;
-    function IsSimpleNumber(ANumber: Integer; ASimpleNumbers: TIntDictionary): Boolean;
+    function IsSimpleNumber(ANumber: Integer; ASimpleNumbers: TIntList): Boolean;
   end;
 
 { TNumbersThread }
@@ -44,51 +42,58 @@ procedure TNumbersThread.Execute;
 var
   i: Integer;
   f: Text;
-  MySimpleDict: TIntDictionary;
+  MySimpleDict: TIntList;
+  FirstNum: Boolean;
 begin
-  MySimpleDict := TIntDictionary.Create;
+  MySimpleDict := TIntList.Create;
   AssignFile(f, FFileName);
   Try
     Rewrite(f);
-  for i := 0 to FMaxNumber - 1 do
-    if IsSimpleNumber(i, MySimpleDict) then
+    FirstNum := True;
+    for i := 1 to FMaxNumber - 1 do
     begin
-      if LogNumber(i) then
-        Write(f, IntToStr(i) + ' ');
-    end;
+      if IsSimpleNumber(i, MySimpleDict) then
+      begin
+        MySimpleDict.Add(i);
+        if LogNumber(i) then
+        begin
+          Write(f, IfThen(FirstNum, '', ' ') + IntToStr(I));
+          FirstNum := False;
+        end;
+      end;
+  end;
   finally
     Close(f);
     MySimpleDict.Free;
   end;
 end;
 
-function TNumbersThread.IsSimpleNumber(ANumber: Integer;
-  ASimpleNumbers: TIntDictionary): Boolean;
+function TNumbersThread.IsSimpleNumber(ANumber: Integer; ASimpleNumbers: TIntList): Boolean;
 var
   i: Integer;
 begin
-  //for i := 0 to ASimpleNumbers.KeySize - 1 do
-  //ASimpleNumbers.Keys[i];
+  for i := 1 to ASimpleNumbers.Count - 1 do
+  if not (ASimpleNumbers[i] in [0, 1]) then
+    if (ANumber mod ASimpleNumbers[i]) = 0 then
+      Exit(False);
   Result := True;
 end;
 
 var
-  //IntList: TIntList;
   LastNumber: Integer;
   CS: TCriticalSection;
   CommonFile: TEXT;
 
 function LogNumber(ANumber: Integer): Boolean;
 begin
+  Result := LastNumber < ANumber;
   CS.Enter;
   try
     Result := LastNumber < ANumber;
-    //Result := IntList.IndexOf(ANumber) = -1;
     if Result then
     begin
       Write(CommonFile, IfThen(LastNumber > 0, ' ', '') + IntToStr(ANumber));
       LastNumber := ANumber;
-      //IntList.Add(ANumber);
     end;
   finally
     CS.Leave;
@@ -102,7 +107,6 @@ var
   dtStart: TDateTime;
 begin
   CS := TCriticalSection.Create;
-  //IntList := TIntList.Create;
   LastNumber := 0;
   AssignFile(CommonFile, 'Result.txt');
   Rewrite(CommonFile);
@@ -116,15 +120,14 @@ begin
     Th2.Resume;
     res := WaitForMultipleObjects(2, @waitArr, True, INFINITE);
     writeln('res = ', res);
-    writeln('waiting is ', MilliSecondsBetween(Now, dtStart));
-    writeln('Press Return to exit');
-    Readln;
   finally
     Th1.Free;
     Th2.Free;
     Close(CommonFile);
-    //IntList.Free;
     CS.Free;
+    writeln('waiting is ', MilliSecondsBetween(Now, dtStart), 'ms');
+    writeln('Press Return to exit');
+    Readln;
   end;
 end.
 
